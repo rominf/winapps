@@ -1,0 +1,24 @@
+[[package]]
+category = "main"
+description = "A backport of the dataclasses module for Python 3.6"
+marker = "python_version >= \"3.6\" and python_version < \"3.7\""
+name = "dataclasses"
+optional = false
+python-versions = "*"
+version = "0.6"
+
+[[package]]
+category = "main"
+description = "Plumbum: shell combinators library"
+name = "plumbum"
+optional = false
+python-versions = "*"
+version = "1.6.7"
+
+[metadata]
+content-hash = "01262ef2f4b976b556dec4c728114d4ce0881993e73d4920070950f197651f74"
+python-versions = "^3.6"
+
+[metadata.hashes]
+dataclasses = ["454a69d788c7fda44efd71e259be79577822f5e3f53f029a22d08004e951dc9f", "6988bd2b895eef432d562370bb707d540f32f7360ab13da45340101bc2307d84"]
+plumbum = ["d143f079bfb60b11e9bec09a49695ce2e55ce5ca0246877bdb0818ab7c7fc312", "df96a5facf621db4a6d682bdc93afa5ed6b107a8667c73c3f0a0f0fab4217c81"]
