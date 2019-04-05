@@ -4,8 +4,9 @@ import winreg
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime
+from enum import Enum
 from pathlib import Path
-from typing import Optional, Generator, Any, Tuple, Callable, Mapping
+from typing import Optional, Generator, Any, Tuple, Callable, Mapping, Union
 
 import plumbum
 
@@ -30,6 +31,11 @@ class InstalledApplication:
         command()
 
 
+class Action(Enum):
+    INSTALL = 'install'
+    UNINSTALL = 'uninstall'
+
+
 def list_installed() -> Generator[InstalledApplication, None, None]:
     application_or_none_generator = (_installed_application(application_key)
                                      for application_key in _installed_application_keys())
@@ -51,6 +57,51 @@ def search_installed(name: Optional[str] = None,
             yield app
 
 
+def installer_command(installer: Union[plumbum.commands.BaseCommand, Path, str],
+                      action: Action = Action.INSTALL,
+                      quiet: bool = False,
+                      log_path: Optional[Union[Path, str]] = None
+                      ) -> plumbum.commands.BaseCommand:
+    def has_argument(argument: _Argument) -> bool:
+        return isinstance(installer, plumbum.commands.base.BoundCommand) and argument.value in result.args
+
+    if isinstance(installer, plumbum.commands.BaseCommand):
+        result = installer
+    else:
+        installer_path = Path(installer)
+        if installer_path.suffix != '.exe':
+            raise NotImplementedError("Only .exe installers are supported")
+        result = plumbum.local[str(installer_path)]
+
+    if action == Action.UNINSTALL and not has_argument(_Argument.UNINSTALL):
+        result = result['/uninstall']
+    if quiet and not has_argument(_Argument.QUIET):
+        result = result['/quiet']
+    if log_path is not None and not has_argument(_Argument.LOG):
+        result = result['/log', str(log_path)]
+    return result
+
+
+def install(installer: Union[plumbum.commands.BaseCommand, Path, str],
+            quiet: bool = False,
+            log_path: Optional[Union[Path, str]] = None
+            ) -> None:
+    installer_command(installer=installer, action=Action.INSTALL, quiet=quiet, log_path=log_path)()
+
+
+def uninstall(installer: Union[plumbum.commands.BaseCommand, Path, str],
+              quiet: bool = False,
+              log_path: Optional[Union[Path, str]] = None
+              ) -> None:
+    installer_command(installer=installer, action=Action.UNINSTALL, quiet=quiet, log_path=log_path)()
+
+
+class _Argument(Enum):
+    UNINSTALL = '/uninstall'
+    QUIET = '/quiet'
+    LOG = '/log'
+
+
 _ROOT_KEY = winreg.HKEY_LOCAL_MACHINE
 _VALUE_NOT_SET = '(value not set)'
 
@@ -59,7 +110,7 @@ def _none_on_value_not_set(value: Any) -> Any:
     return value if value != _VALUE_NOT_SET else None
 
 
-REGISTRY_KEY_TO_APPLICATION_FIELD_DICT: Mapping[str, Optional[Callable]] = defaultdict(lambda: None, **{
+_REGISTRY_KEY_TO_APPLICATION_FIELD_DICT: Mapping[str, Optional[Callable]] = defaultdict(lambda: None, **{
     'DisplayName': lambda value: ('name', _none_on_value_not_set(value)),
     'DisplayVersion': lambda value: ('version', _none_on_value_not_set(str(value))),
     'InstallDate': lambda value: (
@@ -141,7 +192,7 @@ def _installed_application(application_key: str) -> Optional[InstalledApplicatio
         name, value, type_ = data
         if skip():
             return None
-        f = REGISTRY_KEY_TO_APPLICATION_FIELD_DICT[name]
+        f = _REGISTRY_KEY_TO_APPLICATION_FIELD_DICT[name]
         if f is not None:
             setattr(result, *f(value))
     if not result.name:
@@ -149,7 +200,7 @@ def _installed_application(application_key: str) -> Optional[InstalledApplicatio
     return result
 
 
-def _command(command_str: str, quiet: bool = True) -> 'plumbum.machines.local.LocalCommand':
+def _command(command_str: str, quiet: bool = True) -> plumbum.commands.BaseCommand:
     command_list = shlex.split(command_str, posix=False)
     command_path, command_args = command_list[0], tuple(command_list[1:])
     if command_path.startswith('"') and command_path.endswith('"'):

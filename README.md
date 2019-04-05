@@ -33,8 +33,22 @@ for app in winapps.search_installed('tortoisehg'):
     app.uninstall()
 ```
 
+### Installing and uninstalling using .exe installer
+```python
+import winapps
+
+installer_path = r'D:\wix311.exe'
+
+winapps.install(installer_path, quiet=True)
+winapps.uninstall(installer_path, quiet=True)
+installer_command = winapps.installer_command(installer_path, log_path=r'D:\installer.log')
+installer_command()
+winapps.uninstall(installer_command, quiet=False)
+```
+
 ## Caveats
-The library currently lookups only for software installed for all users.
+The library currently lookups only for software installed for all users. Only Windows Installer 3.0 .exe installers are
+supported in `installer_command`, `install`, and `uninstall` are supported.
 
 ## Credits
 This library is heavily inspired by `win_pkg` SaltStack module.
