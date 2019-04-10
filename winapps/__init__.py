@@ -115,8 +115,10 @@ def uninstalled(name_or_installer: Union[plumbum.commands.BaseCommand, Path, str
                 log_path: Optional[Union[Path, str]] = None
                 ) -> ContextManager[None]:
     uninstall(name_or_installer=name_or_installer, quiet=quiet, log_path=log_path)
-    yield
-    uninstall(name_or_installer=name_or_installer, quiet=quiet, log_path=log_path)
+    try:
+        yield
+    finally:
+        uninstall(name_or_installer=name_or_installer, quiet=quiet, log_path=log_path)
 
 
 class _Argument(Enum):
