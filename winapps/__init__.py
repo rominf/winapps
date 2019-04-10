@@ -98,7 +98,11 @@ def uninstall(name_or_installer: Union[plumbum.commands.BaseCommand, Path, str],
               ) -> None:
     if isinstance(name_or_installer, str):
         name = name_or_installer
-        for app in search_installed(name):
+        while True:
+            try:
+                app = next(search_installed(name))
+            except StopIteration:
+                break
             app.uninstall(quiet=quiet)
     installer = name_or_installer
     with suppress(FileNotFoundError):
