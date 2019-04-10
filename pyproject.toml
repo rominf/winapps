@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "winapps"
-version = "0.1.1"
+version = "0.1.2"
 description = "Python library for managing installed applications on Windows"
 authors = ["Roman Inflianskas <infroma@gmail.com>"]
 license = "Apache-2.0"

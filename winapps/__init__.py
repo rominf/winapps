@@ -2,11 +2,12 @@ import re
 import shlex
 import winreg
 from collections import defaultdict
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Generator, Any, Tuple, Callable, Mapping, Union
+from typing import Optional, Generator, Any, Tuple, Callable, Mapping, Union, ContextManager
 
 import plumbum
 
@@ -22,11 +23,11 @@ class InstalledApplication:
     publisher: Optional[str] = None
     uninstall_string: Optional[str] = None
 
-    def modify(self, quiet: bool = True) -> None:
+    def modify(self, quiet: bool = False) -> None:
         command = _command(self.modify_path, quiet=quiet)
         command()
 
-    def uninstall(self, quiet: bool = True) -> None:
+    def uninstall(self, quiet: bool = False) -> None:
         command = _command(self.uninstall_string, quiet=quiet)
         command()
 
@@ -69,6 +70,8 @@ def installer_command(installer: Union[plumbum.commands.BaseCommand, Path, str],
         result = installer
     else:
         installer_path = Path(installer)
+        if not installer_path.exists():
+            raise FileNotFoundError(f"Installer not found: {installer_path}")
         if installer_path.suffix != '.exe':
             raise NotImplementedError("Only .exe installers are supported")
         result = plumbum.local[str(installer_path)]
@@ -89,11 +92,27 @@ def install(installer: Union[plumbum.commands.BaseCommand, Path, str],
     installer_command(installer=installer, action=Action.INSTALL, quiet=quiet, log_path=log_path)()
 
 
-def uninstall(installer: Union[plumbum.commands.BaseCommand, Path, str],
+def uninstall(name_or_installer: Union[plumbum.commands.BaseCommand, Path, str],
               quiet: bool = False,
               log_path: Optional[Union[Path, str]] = None
               ) -> None:
-    installer_command(installer=installer, action=Action.UNINSTALL, quiet=quiet, log_path=log_path)()
+    if isinstance(name_or_installer, str):
+        name = name_or_installer
+        for app in search_installed(name):
+            app.uninstall(quiet=quiet)
+    installer = name_or_installer
+    with suppress(FileNotFoundError):
+        installer_command(installer=installer, action=Action.UNINSTALL, quiet=quiet, log_path=log_path)()
+
+
+@contextmanager
+def uninstalled(name_or_installer: Union[plumbum.commands.BaseCommand, Path, str],
+                quiet: bool = False,
+                log_path: Optional[Union[Path, str]] = None
+                ) -> ContextManager[None]:
+    uninstall(name_or_installer=name_or_installer, quiet=quiet, log_path=log_path)
+    yield
+    uninstall(name_or_installer=name_or_installer, quiet=quiet, log_path=log_path)
 
 
 class _Argument(Enum):
@@ -200,7 +219,7 @@ def _installed_application(application_key: str) -> Optional[InstalledApplicatio
     return result
 
 
-def _command(command_str: str, quiet: bool = True) -> plumbum.commands.BaseCommand:
+def _command(command_str: str, quiet: bool = False) -> plumbum.commands.BaseCommand:
     command_list = shlex.split(command_str, posix=False)
     command_path, command_args = command_list[0], tuple(command_list[1:])
     if command_path.startswith('"') and command_path.endswith('"'):
