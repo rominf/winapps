@@ -25,25 +25,24 @@ for app in winapps.list_installed():
 # ...
 ```
 
-### Searching and uninstalling application
+### Searching applications
 ```python
 import winapps
 
 for app in winapps.search_installed('tortoisehg'):
-    app.uninstall()
+    print(app)
 ```
 
-### Installing and uninstalling using .exe installer
+### Uninstalling applications
 ```python
 import winapps
 
-installer_path = r'D:\wix311.exe'
+# Assuming you have exactly one installed Notepad++
+[npp] = winapps.search_installed('Notepad++')
+npp.uninstall('/S')
 
-winapps.install(installer_path, quiet=True)
-winapps.uninstall(installer_path, quiet=True)
-installer_command = winapps.installer_command(installer_path, log_path=r'D:\installer.log')
-installer_command()
-winapps.uninstall(installer_command, quiet=False)
+# Simpler universal variant (uninstall all Notepad++ applications)
+winapps.uninstall('Notepad++', args=['/S'])
 ```
 
 ## Caveats

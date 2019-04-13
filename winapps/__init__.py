@@ -2,14 +2,16 @@ import re
 import shlex
 import winreg
 from collections import defaultdict
-from contextlib import contextmanager, suppress
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime
-from enum import Enum
 from pathlib import Path
-from typing import Optional, Generator, Any, Tuple, Callable, Mapping, Union, ContextManager
+from typing import Optional, Generator, Any, Tuple, Callable, Mapping, ContextManager, Collection
 
 import plumbum
+
+
+DEFAULT_SEARCH_FLAGS = re.IGNORECASE
 
 
 @dataclass
@@ -23,18 +25,13 @@ class InstalledApplication:
     publisher: Optional[str] = None
     uninstall_string: Optional[str] = None
 
-    def modify(self, quiet: bool = False) -> None:
-        command = _command(self.modify_path, quiet=quiet)
+    def modify(self, *args) -> None:
+        command = _command(self.modify_path, *args)
         command()
 
-    def uninstall(self, quiet: bool = False) -> None:
-        command = _command(self.uninstall_string, quiet=quiet)
+    def uninstall(self, *args) -> None:
+        command = _command(self.uninstall_string, *args)
         command()
-
-
-class Action(Enum):
-    INSTALL = 'install'
-    UNINSTALL = 'uninstall'
 
 
 def list_installed() -> Generator[InstalledApplication, None, None]:
@@ -44,87 +41,52 @@ def list_installed() -> Generator[InstalledApplication, None, None]:
 
 
 def search_installed(name: Optional[str] = None,
-                     flags: int = re.IGNORECASE,
-                     **kwargs
-                     ) -> Generator[InstalledApplication, None, None]:
-    patterns = {key: value for key, value in {'name': name, **kwargs}.items() if value}
+                     *,
+                     search_flags: int = DEFAULT_SEARCH_FLAGS,
+                     **search_fields) -> Generator[InstalledApplication, None, None]:
+    patterns = {key: value for key, value in {'name': name, **search_fields}.items() if value}
     for app in list_installed():
         matches = True
         for field_name, pattern in patterns.items():
-            if not re.search(pattern=pattern, string=str(getattr(app, field_name, '')), flags=flags):
+            if not re.search(pattern=pattern, string=str(getattr(app, field_name, '')), flags=search_flags):
                 matches = False
                 break
         if matches:
             yield app
 
 
-def installer_command(installer: Union[plumbum.commands.BaseCommand, Path, str],
-                      action: Action = Action.INSTALL,
-                      quiet: bool = False,
-                      log_path: Optional[Union[Path, str]] = None
-                      ) -> plumbum.commands.BaseCommand:
-    def has_argument(argument: _Argument) -> bool:
-        return isinstance(installer, plumbum.commands.base.BoundCommand) and argument.value in result.args
-
-    if isinstance(installer, plumbum.commands.BaseCommand):
-        result = installer
-    else:
-        installer_path = Path(installer)
-        if not installer_path.exists():
-            raise FileNotFoundError(f"Installer not found: {installer_path}")
-        if installer_path.suffix != '.exe':
-            raise NotImplementedError("Only .exe installers are supported")
-        result = plumbum.local[str(installer_path)]
-
-    if action == Action.UNINSTALL and not has_argument(_Argument.UNINSTALL):
-        result = result['/uninstall']
-    if quiet and not has_argument(_Argument.QUIET):
-        result = result['/quiet']
-    if log_path is not None and not has_argument(_Argument.LOG):
-        result = result['/log', str(log_path)]
-    return result
-
-
-def install(installer: Union[plumbum.commands.BaseCommand, Path, str],
-            quiet: bool = False,
-            log_path: Optional[Union[Path, str]] = None
-            ) -> None:
-    installer_command(installer=installer, action=Action.INSTALL, quiet=quiet, log_path=log_path)()
-
-
-def uninstall(name_or_installer: Union[plumbum.commands.BaseCommand, Path, str],
-              quiet: bool = False,
-              log_path: Optional[Union[Path, str]] = None
-              ) -> None:
-    if isinstance(name_or_installer, str):
-        name = name_or_installer
-        while True:
-            try:
-                app = next(search_installed(name))
-            except StopIteration:
-                break
-            app.uninstall(quiet=quiet)
-    installer = name_or_installer
-    with suppress(FileNotFoundError):
-        installer_command(installer=installer, action=Action.UNINSTALL, quiet=quiet, log_path=log_path)()
+def uninstall(name: Optional[str] = None,
+              args: Optional[Collection] = None,
+              *,
+              search_flags: int = DEFAULT_SEARCH_FLAGS,
+              **search_fields) -> None:
+    while True:
+        try:
+            app = next(search_installed(name=name, search_flags=search_flags, **search_fields))
+        except StopIteration:
+            break
+        if args is None:
+            args = []
+        app.uninstall(*args)
 
 
 @contextmanager
-def uninstalled(name_or_installer: Union[plumbum.commands.BaseCommand, Path, str],
-                quiet: bool = False,
-                log_path: Optional[Union[Path, str]] = None
-                ) -> ContextManager[None]:
-    uninstall(name_or_installer=name_or_installer, quiet=quiet, log_path=log_path)
+def uninstalled(name: Optional[str] = None,
+                args: Optional[Collection] = None,
+                *,
+                search_flags: int = DEFAULT_SEARCH_FLAGS,
+                **search_fields) -> ContextManager[None]:
+    uninstall_kwargs = {
+        'name': name,
+        'args': args,
+        'search_flags': search_flags,
+        **search_fields,
+    }
+    uninstall(**uninstall_kwargs)
     try:
         yield
     finally:
-        uninstall(name_or_installer=name_or_installer, quiet=quiet, log_path=log_path)
-
-
-class _Argument(Enum):
-    UNINSTALL = '/uninstall'
-    QUIET = '/quiet'
-    LOG = '/log'
+        uninstall(**uninstall_kwargs)
 
 
 _ROOT_KEY = winreg.HKEY_LOCAL_MACHINE
@@ -225,11 +187,10 @@ def _installed_application(application_key: str) -> Optional[InstalledApplicatio
     return result
 
 
-def _command(command_str: str, quiet: bool = False) -> plumbum.commands.BaseCommand:
+def _command(command_str: str, *args) -> plumbum.commands.BaseCommand:
     command_list = shlex.split(command_str, posix=False)
     command_path, command_args = command_list[0], tuple(command_list[1:])
     if command_path.startswith('"') and command_path.endswith('"'):
         command_path = command_path[1:-1]
-    if quiet:
-        command_args += ('/quiet', )
+    command_args += args
     return plumbum.local[command_path][command_args]
