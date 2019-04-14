@@ -1,5 +1,7 @@
+import os
 import re
 import shlex
+import stat
 import winreg
 from collections import defaultdict
 from contextlib import contextmanager
@@ -188,9 +190,19 @@ def _installed_application(application_key: str) -> Optional[InstalledApplicatio
 
 
 def _command(command_str: str, *args) -> plumbum.commands.BaseCommand:
-    command_list = shlex.split(command_str, posix=False)
-    command_path, command_args = command_list[0], tuple(command_list[1:])
-    if command_path.startswith('"') and command_path.endswith('"'):
-        command_path = command_path[1:-1]
+    def is_executable(path) -> bool:
+        return command_path.is_file() and bool(stat.S_IMODE(path.stat().st_mode) & os.X_OK)
+
+    if command_str.startswith(("'", '"')):
+        command_list = shlex.split(command_str, posix=False)
+        command_path = command_list[0][1:-1]
+        command_args = command_list[1:]
+    else:
+        space_index = command_str.find(' ')
+        command_path = Path(command_str[:space_index])
+        while not is_executable(command_path) and space_index > -1:
+            space_index = command_str.find(' ', space_index + 1)
+            command_path = Path(command_str[:(space_index if space_index > -1 else len(command_str))])
+        command_args = shlex.split(command_str[space_index + 1:], posix=False) if space_index > -1 else []
     command_args += args
-    return plumbum.local[command_path][command_args]
+    return plumbum.local[str(command_path)][command_args]
