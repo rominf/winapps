@@ -103,7 +103,7 @@ _REGISTRY_KEY_TO_APPLICATION_FIELD_DICT: Mapping[str, Optional[Callable]] = defa
     'DisplayName': lambda value: ('name', _none_on_value_not_set(value)),
     'DisplayVersion': lambda value: ('version', _none_on_value_not_set(str(value))),
     'InstallDate': lambda value: (
-        'install_date', _none_on_value_not_set(value) and datetime.strptime(value, '%Y%m%d').date()),
+        'install_date', _none_on_value_not_set(value)),
     'InstallLocation': lambda value: ('install_location', _none_on_value_not_set(value) and Path(value)),
     'InstallSource': lambda value: ('install_source', _none_on_value_not_set(value) and Path(value)),
     'ModifyPath': lambda value: ('modify_path', _none_on_value_not_set(value)),
