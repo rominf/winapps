@@ -103,13 +103,27 @@ _REGISTRY_KEY_TO_APPLICATION_FIELD_DICT: Mapping[str, Optional[Callable]] = defa
     'DisplayName': lambda value: ('name', _none_on_value_not_set(value)),
     'DisplayVersion': lambda value: ('version', _none_on_value_not_set(str(value))),
     'InstallDate': lambda value: (
-        'install_date', _none_on_value_not_set(value) and datetime.strptime(value, '%Y%m%d').date()),
+        'install_date', _none_on_value_not_set(listToString(value)) and dateCheck(value)),
     'InstallLocation': lambda value: ('install_location', _none_on_value_not_set(value) and Path(value)),
     'InstallSource': lambda value: ('install_source', _none_on_value_not_set(value) and Path(value)),
     'ModifyPath': lambda value: ('modify_path', _none_on_value_not_set(value)),
     'Publisher': lambda value: ('publisher', _none_on_value_not_set(value)),
     'UninstallString': lambda value: ('uninstall_string', _none_on_value_not_set(value)),
 })
+
+
+def dateCheck(d):
+    if len(d) is 8:
+        return datetime.strptime(listToString(d), '%Y%m%d').date()
+    else:
+        return datetime.strptime(listToString(d), '%m/%d/%Y').date()
+
+
+def listToString(s):
+    str1 = ""
+    for ele in s:
+        str1 += ele
+    return str1
 
 
 def _installed_application_keys() -> Generator[str, None, None]:
@@ -183,6 +197,9 @@ def _installed_application(application_key: str) -> Optional[InstalledApplicatio
             return None
         f = _REGISTRY_KEY_TO_APPLICATION_FIELD_DICT[name]
         if f is not None:
+        #     if isinstance(f(value), datetime.date.):
+        #         setattr(result, *f(list(value)))
+        #     else:
             setattr(result, *f(value))
     if not result.name:
         return None
