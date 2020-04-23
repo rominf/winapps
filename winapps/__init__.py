@@ -102,14 +102,24 @@ def _none_on_value_not_set(value: Any) -> Any:
 _REGISTRY_KEY_TO_APPLICATION_FIELD_DICT: Mapping[str, Optional[Callable]] = defaultdict(lambda: None, **{
     'DisplayName': lambda value: ('name', _none_on_value_not_set(value)),
     'DisplayVersion': lambda value: ('version', _none_on_value_not_set(str(value))),
-    'InstallDate': lambda value: (
-        'install_date', _none_on_value_not_set(value) and datetime.strptime(value, '%Y%m%d').date()),
+    'InstallDate': lambda value: ('install_date', _none_on_value_not_set(value) and _date_check(value)),
     'InstallLocation': lambda value: ('install_location', _none_on_value_not_set(value) and Path(value)),
     'InstallSource': lambda value: ('install_source', _none_on_value_not_set(value) and Path(value)),
     'ModifyPath': lambda value: ('modify_path', _none_on_value_not_set(value)),
     'Publisher': lambda value: ('publisher', _none_on_value_not_set(value)),
     'UninstallString': lambda value: ('uninstall_string', _none_on_value_not_set(value)),
 })
+
+
+def _date_check(date):
+    date = str(date)
+    if len(date) == 10 and date.isdigit():  # 1577836800 (Timestamp format)
+        return datetime.fromtimestamp(int(date)).date()
+    elif len(date) == 8 and date.isdigit():  # 20200101 (YMD no separator format)
+        return datetime.strptime(date[:8], "%Y%m%d").date()
+    elif "/" in date:  # 1/1/2020 (MDY non leading zero format)
+        filled = [x.zfill(2) for x in date.split('/')]
+        return datetime.strptime("".join(filled), "%m%d%Y").date())
 
 
 def _installed_application_keys() -> Generator[str, None, None]:
@@ -145,8 +155,7 @@ def _installed_application(application_key: str) -> Optional[InstalledApplicatio
     def skip() -> bool:
         def guid_to_squid(guid: str) -> str:
             """Taken from salt.utils.win_functions"""
-            guid_pattern = re.compile(
-                r'^\{(\w{8})-(\w{4})-(\w{4})-(\w\w)(\w\w)-(\w\w)(\w\w)(\w\w)(\w\w)(\w\w)(\w\w)\}$')
+            guid_pattern = re.compile(r'^\{(\w{8})-(\w{4})-(\w{4})-(\w\w)(\w\w)-(\w\w)(\w\w)(\w\w)(\w\w)(\w\w)(\w\w)\}$')
             guid_match = guid_pattern.match(guid)
             # noinspection PyShadowingNames
             result = ''
