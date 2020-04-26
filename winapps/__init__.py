@@ -119,7 +119,7 @@ def _date_check(date):
         return datetime.strptime(date[:8], "%Y%m%d").date()
     elif "/" in date:  # 1/1/2020 (MDY non leading zero format)
         filled = [x.zfill(2) for x in date.split('/')]
-        return datetime.strptime("".join(filled), "%m%d%Y").date())
+        return datetime.strptime("".join(filled), "%m%d%Y").date()
 
 
 def _installed_application_keys() -> Generator[str, None, None]:
