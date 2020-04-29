@@ -8,6 +8,12 @@ To install `winapps` from PyPI run:
 ```shell
 $ pip install winapps
 ```
+Or clone it using git:
+```shell
+$ git clone https://github.com/rominf/winapps.git
+$ cd winapps
+$ python(3) setup.py install
+```
 
 ## Usage
 ### Printing installed applications
