@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
 from distutils.core import setup
+try:
+    import setuptools
+except:
+    pass # Can't install dependencies
 
 packages = \
 ['winapps']
