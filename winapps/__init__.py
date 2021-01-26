@@ -171,9 +171,9 @@ def _installed_application(application_key: str) -> Optional[InstalledApplicatio
             except FileNotFoundError:
                 return False
 
-        is_system_component = name == 'SystemComponent' and value > 0
+        is_system_component = name == 'SystemComponent' and int(value or 0) > 0
         is_win_installer_absent_in_products = False
-        if name == 'WindowsInstaller' and value > 0:
+        if name == 'WindowsInstaller' and int(value or 0) > 0:
             squid = guid_to_squid(application_key.rpartition('\\')[2])
             products_key = r'Software\Classes\Installer\Products' + '\\' + squid
             if not key_exists(_ROOT_KEY, products_key):
